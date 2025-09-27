@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Hair Filter — Gallery + Size/Lift/Width + Auto Face Detection</title>
+<style>
+  :root{--bg:#0b0b0b;--ink:#fff;--muted:#9ca3af;--card:#151515;--accent:#ffffff}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,sans-serif;background:var(--bg);color:var(--ink)}
+  .wrap{max-width:980px;margin:0 auto;padding:14px}
+  h1{margin:6px 0 4px}
+  .muted{color:var(--muted); margin:0 0 12px}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0;align-items:center}
+  .btn{background:#111;border:1px solid #333;color:#fff;border-radius:10px;padding:9px 12px;font-weight:600;cursor:pointer}
+  .panel{background:var(--card);border:1px solid #262626;border-radius:14px;padding:10px}
+
+  /* Sliders */
+  .ctrls{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+  .ctrl{display:flex;flex-direction:column;gap:6px;font-weight:700;font-size:12px}
+  .ctrl input[type=range]{width:160px}
+
+  /* Stage */
+  .stage{position:relative;width:100%;aspect-ratio:3/4;background:#000;border-radius:16px;overflow:hidden}
+  @media(max-width:520px){.stage{aspect-ratio:9/16}}
+  video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)} /* selfie view */
+  .overlay{position:absolute;inset:0;pointer-events:none}
+  #hair{position:absolute;width:300px;user-select:none;filter:drop-shadow(0 4px 12px rgba(0,0,0,.4));transform-origin:50% 10%;display:none}
+  .hint{position:absolute;left:12px;top:12px;background:rgba(0,0,0,.55);padding:6px 8px;border-radius:8px;font-size:12px}
+  .box{position:absolute;border:2px dashed rgba(255,255,255,.7);border-radius:12px;display:none}
+  .banner{background:#7c2d12;border:1px solid #a16207;color:#fff;padding:8px 10px;border-radius:10px;margin:8px 0;display:none}
+  .note{opacity:.85;margin:10px 0 0}
+
+  /* Gallery */
+  .gallery{display:grid;gap:10px;grid-template-columns:repeat(5, 1fr)}
+  @media(max-width:880px){.gallery{grid-template-columns:repeat(4, 1fr)}}
+  @media(max-width:680px){.gallery{grid-template-columns:repeat(3, 1fr)}}
+  @media(max-width:480px){.gallery{grid-template-columns:repeat(2, 1fr)}}
+  .thumb{position:relative;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:12px;overflow:hidden;cursor:pointer;transition:transform .1s ease}
+  .thumb:hover{transform:translateY(-2px)}
+  .thumb img{width:100%;height:120px;object-fit:contain;background:#0b0b0b}
+  .thumb .cap{padding:8px 10px;font-weight:800;font-size:13px}
+  .thumb.active{outline:2px solid var(--accent); box-shadow:0 0 0 3px rgba(255,255,255,.15) inset}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Hair Filter — Gallery</h1>
+  <p class="muted">Tap an image to apply a hairstyle. Use Size/Lift/Width to fine-tune. The hair auto-tracks your face (position, scale, rotation).</p>
+  <div id="notice" class="banner"></div>
+
+  <div class="toolbar">
+    <button id="start" class="btn">Start Camera</button>
+    <label class="btn" style="display:flex;align-items:center;gap:8px">
+      <input id="debug" type="checkbox" style="vertical-align:-2px"> Debug
+    </label>
+    <div class="ctrls panel">
+      <label class="ctrl">Size
+        <input id="sizeRange" type="range" min="0.8" max="1.8" step="0.01" value="1.35">
+      </label>
+      <label class="ctrl">Lift
+        <input id="liftRange" type="range" min="0.25" max="0.65" step="0.01" value="0.45">
+      </label>
+      <label class="ctrl">Width
+        <input id="widthRange" type="range" min="0.8" max="1.8" step="0.01" value="1.20">
+      </label>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:12px">
+    <div id="gallery" class="gallery" aria-label="Hair filters gallery"></div>
+  </div>
+
+  <div class="stage panel">
+    <video id="video" playsinline muted autoplay></video>
+    <div class="overlay">
+      <div id="hint" class="hint">Move into view…</div>
+      <div id="box" class="box"></div>
+      <img id="hair" alt="hair">
+    </div>
+  </div>
+  <p class="note">⚠️ Run on <b>HTTPS</b> (or <code>http://localhost</code>). Use transparent PNGs in <code>/images</code>. If auto-start is blocked, press “Start Camera”.</p>
+</div>
+
+<!-- MediaPipe FaceMesh (native) + Camera Utils -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script>
+/* ========= Elements & helpers ========= */
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const startBtn = $("#start"), video = $("#video"), hair = $("#hair"), box = $("#box"), hint = $("#hint"), notice = $("#notice");
+const galleryEl = $("#gallery"), debug = $("#debug");
+const sizeRange = $("#sizeRange"), liftRange = $("#liftRange"), widthRange = $("#widthRange");
+
+const isSecure = () => location.protocol === "https:" || location.hostname === "localhost";
+const show = (el, msg) => { if (msg !== undefined) el.textContent = msg; el.style.display = "block"; };
+const hide = el => { el.style.display = "none"; };
+
+/* ========= Your images (thumbnails & full) ========= */
+const FILTERS = [
+  { id:"bob",   label:"Wavy",   thumb:"1.png",   full:"1.png" },
+  { id:"curly", label:"Low Fade", thumb:"2.png", full:"2.png" },
+  { id:"pixie", label:"High Fade", thumb:"3.png", full:"3.png" },
+  { id:"waves", label:"Mushroom", thumb:"4.png", full:"4.png" },
+  { id:"bun",   label:"Blonde",   thumb:"5.png",   full:"4.png" }
+];
+let currentId = FILTERS[0].id;
+
+/* Build gallery cards */
+function buildGallery(){
+  galleryEl.innerHTML = "";
+  FILTERS.forEach((f,i)=>{
+    const card = document.createElement("button");
+    card.className = "thumb" + (i===0 ? " active":"");
+    card.type = "button";
+    card.dataset.id = f.id;
+    card.innerHTML = `
+      <img src="${f.thumb}" alt="${f.label} preview" loading="lazy">
+      <div class="cap">${f.label}</div>
+    `;
+    card.addEventListener("click", ()=>{
+      $$(".thumb").forEach(t=>t.classList.remove("active"));
+      card.classList.add("active");
+      applyFilter(f.id);
+    });
+    galleryEl.appendChild(card);
+  });
+}
+
+/* ========= Tracking (MediaPipe Face Mesh, native) ========= */
+let camera = null, faceMesh = null, rafId = null;
+
+let hairAR = 1; hair.onload = ()=>{ const nw=hair.naturalWidth||1, nh=hair.naturalHeight||1; hairAR = nh/nw; };
+
+let scaleFactor = parseFloat(sizeRange.value); // base hair size vs face width
+let vOff        = parseFloat(liftRange.value); // vertical offset above face box
+let widthX      = parseFloat(widthRange.value); // horizontal stretch (1 = normal)
+const S = { x:null, y:null, w:null, h:null, a:0 };
+const lerp = (a,b,t)=> a + (b-a)*t;
+let smoothT = 0.35;
+
+sizeRange.addEventListener("input", ()=>{ scaleFactor = parseFloat(sizeRange.value); });
+liftRange.addEventListener("input", ()=>{ vOff        = parseFloat(liftRange.value); });
+widthRange.addEventListener("input",()=>{ widthX      = parseFloat(widthRange.value); });
+
+async function startCamera(){
+  if(!isSecure()){ show(notice,"Camera requires HTTPS or localhost."); throw new Error("insecure"); }
+  if(camera){ await camera.stop(); camera=null; }
+  camera = new Camera(video, { onFrame: async()=>{}, width: 720, height: 960 });
+  await camera.start();
+  hide(notice);
+}
+
+async function initFaceMesh(){
+  if(faceMesh) return;
+  faceMesh = new FaceMesh({ locateFile: (f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+  faceMesh.setOptions({
+    selfieMode: true,
+    maxNumFaces: 4,
+    refineLandmarks: false,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5
+  });
+  faceMesh.onResults(onResults);
+}
+
+function normToPx(nx, ny, W, H){ return { x: nx*W, y: ny*H }; }
+
+function onResults(res){
+  const rect = video.getBoundingClientRect();
+  const W = rect.width, H = rect.height;
+
+  const faces = res.multiFaceLandmarks || [];
+  if(faces.length){
+    // choose largest face
+    let bestIdx=-1, bestArea=-1, bboxes=[];
+    faces.forEach((lm, i)=>{
+      let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+      lm.forEach(p=>{ const {x,y}=normToPx(p.x,p.y,W,H); if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; });
+      const w=maxX-minX, h=maxY-minY, area=w*h;
+      bboxes[i]={minX,minY,w,h,lm};
+      if(area>bestArea){bestArea=area;bestIdx=i;}
+    });
+    const bb = bboxes[bestIdx], lm = bb.lm;
+
+    // eye outer corners
+    const R = lm[33], L = lm[263];
+    const pR = normToPx(R.x,R.y,W,H), pL = normToPx(L.x,L.y,W,H);
+    const eyeMidX = (pR.x + pL.x) / 2;
+    const angleDeg = Math.atan2(pL.y - pR.y, pL.x - pR.x) * 180/Math.PI;
+
+    // smoothing
+    const t = smoothT;
+    S.x = S.x==null ? bb.minX : lerp(S.x, bb.minX, t);
+    S.y = S.y==null ? bb.minY : lerp(S.y, bb.minY, t);
+    S.w = S.w==null ? bb.w    : lerp(S.w, bb.w,  t);
+    S.h = S.h==null ? bb.h    : lerp(S.h, bb.h,  t);
+    S.a = lerp(S.a, angleDeg, Math.max(t, 0.25));
+
+    // place hair — include scaleX(widthX) to widen/narrow without changing height
+    const hairW = S.w * scaleFactor;
+    const hairH = hairW * hairAR;
+    const hairX = eyeMidX - hairW / 2;
+    const hairY = Math.max(S.y - S.h * vOff, 0);
+
+    Object.assign(hair.style, {
+      left: hairX + "px",
+      top:  hairY + "px",
+      width: hairW + "px",
+      height: hairH + "px",
+      transform: `rotate(${S.a}deg) scaleX(${widthX})`,
+      display: "block"
+    });
+
+    hint.style.display = "none";
+    if (debug.checked){
+      Object.assign(box.style, { left: S.x+"px", top: S.y+"px", width: S.w+"px", height: S.h+"px", display: "block" });
+    } else box.style.display = "none";
+  } else {
+    // no face: center preview so user still sees selected style
+    if(hair.src){
+      const r = document.querySelector('.stage').getBoundingClientRect();
+      const w = Math.min(r.width*0.7, 380), h = w*hairAR;
+      Object.assign(hair.style, { left:(r.width/2 - w/2)+"px", top:(r.height*0.18)+"px",
+        width:w+"px", height:h+"px", transform:`rotate(0deg) scaleX(${widthX})`, display:"block" });
+    } else {
+      hair.style.display = "none";
+    }
+    hint.style.display = "block";
+    box.style.display = "none";
+    S.x=S.y=S.w=S.h=null;
+  }
+}
+
+function pump(){
+  cancelAnimationFrame(rafId);
+  const tick = async () => { if(faceMesh && video.readyState>=2) await faceMesh.send({image:video}); rafId=requestAnimationFrame(tick); };
+  rafId = requestAnimationFrame(tick);
+}
+
+async function ensureTracking(){
+  if(!isSecure()){ show(notice,"Open on HTTPS or localhost."); throw new Error("insecure"); }
+  await startCamera();
+  await initFaceMesh();
+  pump();
+}
+
+/* ========= Apply filter ========= */
+function applyFilter(id){
+  const entry = FILTERS.find(f=>f.id===id) || FILTERS[0];
+  currentId = entry.id;
+  hair.src = entry.full;
+  hair.style.display = "block";
+}
+
+/* ========= Boot & UI ========= */
+function initGallery(){
+  buildGallery();
+  applyFilter(currentId);
+}
+
+startBtn.addEventListener("click", async ()=>{ try{ await ensureTracking(); }catch(e){ console.warn(e); }});
+
+// try to autostart (some browsers still require a tap)
+(async()=>{ try{ await ensureTracking(); } catch(e){ show(notice,"Tap “Start Camera” and allow permission."); }})();
+
+initGallery();
+</script>
+</body>
+</html>
