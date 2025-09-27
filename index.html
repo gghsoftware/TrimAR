@@ -2,23 +2,25 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Hair Filter — Gallery + Size/Lift/Width + Auto Face Detection</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<title>Hair Filter — Gallery + Mobile Optimized + Auto Face Detection</title>
 <style>
   :root{--bg:#0b0b0b;--ink:#fff;--muted:#9ca3af;--card:#151515;--accent:#ffffff}
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,sans-serif;background:var(--bg);color:var(--ink)}
-  .wrap{max-width:980px;margin:0 auto;padding:14px}
+  .wrap{max-width:980px;margin:0 auto;padding:12px}
   h1{margin:6px 0 4px}
   .muted{color:var(--muted); margin:0 0 12px}
-  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0;align-items:center}
+
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;align-items:center}
   .btn{background:#111;border:1px solid #333;color:#fff;border-radius:10px;padding:9px 12px;font-weight:600;cursor:pointer}
+  .btn.sm{padding:6px 10px;font-size:12px;border-radius:8px}
   .panel{background:var(--card);border:1px solid #262626;border-radius:14px;padding:10px}
 
   /* Sliders */
-  .ctrls{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
-  .ctrl{display:flex;flex-direction:column;gap:6px;font-weight:700;font-size:12px}
-  .ctrl input[type=range]{width:160px}
+  .ctrls{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .ctrl{display:flex;flex-direction:column;gap:4px;font-weight:700;font-size:12px}
+  .ctrl input[type=range]{width:140px}
 
   /* Stage */
   .stage{position:relative;width:100%;aspect-ratio:3/4;background:#000;border-radius:16px;overflow:hidden}
@@ -26,32 +28,39 @@
   video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)} /* selfie view */
   .overlay{position:absolute;inset:0;pointer-events:none}
   #hair{position:absolute;width:300px;user-select:none;filter:drop-shadow(0 4px 12px rgba(0,0,0,.4));transform-origin:50% 10%;display:none}
-  .hint{position:absolute;left:12px;top:12px;background:rgba(0,0,0,.55);padding:6px 8px;border-radius:8px;font-size:12px}
+  .hint{position:absolute;left:10px;top:10px;background:rgba(0,0,0,.55);padding:5px 7px;border-radius:8px;font-size:12px}
   .box{position:absolute;border:2px dashed rgba(255,255,255,.7);border-radius:12px;display:none}
   .banner{background:#7c2d12;border:1px solid #a16207;color:#fff;padding:8px 10px;border-radius:10px;margin:8px 0;display:none}
   .note{opacity:.85;margin:10px 0 0}
 
   /* Gallery */
-  .gallery{display:grid;gap:10px;grid-template-columns:repeat(5, 1fr)}
+  .gallery{display:grid;gap:8px;grid-template-columns:repeat(5, 1fr)}
   @media(max-width:880px){.gallery{grid-template-columns:repeat(4, 1fr)}}
   @media(max-width:680px){.gallery{grid-template-columns:repeat(3, 1fr)}}
   @media(max-width:480px){.gallery{grid-template-columns:repeat(2, 1fr)}}
   .thumb{position:relative;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:12px;overflow:hidden;cursor:pointer;transition:transform .1s ease}
   .thumb:hover{transform:translateY(-2px)}
-  .thumb img{width:100%;height:120px;object-fit:contain;background:#0b0b0b}
-  .thumb .cap{padding:8px 10px;font-weight:800;font-size:13px}
+  .thumb img{width:100%;height:110px;object-fit:contain;background:#0b0b0b}
+  .thumb .cap{padding:6px 8px;font-weight:800;font-size:12px}
   .thumb.active{outline:2px solid var(--accent); box-shadow:0 0 0 3px rgba(255,255,255,.15) inset}
+
+  /* Smaller controls on phones */
+  @media(max-width:520px){
+    .wrap{padding:10px}
+    .btn{padding:7px 10px;font-size:12px}
+    .ctrl input[type=range]{width:120px}
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Hair Filter — Gallery</h1>
+  <h1>Hair Filter — Gallery (Mobile Optimized)</h1>
   <p class="muted">Tap an image to apply a hairstyle. Use Size/Lift/Width to fine-tune. The hair auto-tracks your face (position, scale, rotation).</p>
   <div id="notice" class="banner"></div>
 
   <div class="toolbar">
-    <button id="start" class="btn">Start Camera</button>
-    <label class="btn" style="display:flex;align-items:center;gap:8px">
+    <button id="start" class="btn sm">Start Camera</button>
+    <label class="btn sm" style="display:flex;align-items:center;gap:6px">
       <input id="debug" type="checkbox" style="vertical-align:-2px"> Debug
     </label>
     <div class="ctrls panel">
@@ -67,7 +76,7 @@
     </div>
   </div>
 
-  <div class="panel" style="margin-bottom:12px">
+  <div class="panel" style="margin-bottom:10px">
     <div id="gallery" class="gallery" aria-label="Hair filters gallery"></div>
   </div>
 
@@ -79,7 +88,7 @@
       <img id="hair" alt="hair">
     </div>
   </div>
-  <p class="note">⚠️ Run on <b>HTTPS</b> (or <code>http://localhost</code>). Use transparent PNGs in <code>/images</code>. If auto-start is blocked, press “Start Camera”.</p>
+  <p class="note">⚠️ Run on <b>HTTPS</b> (or <code>http://localhost</code>). Use transparent PNGs (700–1200px). If auto-start is blocked, press “Start Camera”.</p>
 </div>
 
 <!-- MediaPipe FaceMesh (native) + Camera Utils -->
@@ -99,12 +108,13 @@ const show = (el, msg) => { if (msg !== undefined) el.textContent = msg; el.styl
 const hide = el => { el.style.display = "none"; };
 
 /* ========= Your images (thumbnails & full) ========= */
+/* You can keep your 1.png–5.png naming; I fixed Blonde->5.png for the full image */
 const FILTERS = [
-  { id:"bob",   label:"Wavy",   thumb:"1.png",   full:"1.png" },
-  { id:"curly", label:"Low Fade", thumb:"2.png", full:"2.png" },
+  { id:"bob",   label:"Wavy",      thumb:"1.png", full:"1.png" },
+  { id:"curly", label:"Low Fade",  thumb:"2.png", full:"2.png" },
   { id:"pixie", label:"High Fade", thumb:"3.png", full:"3.png" },
-  { id:"waves", label:"Mushroom", thumb:"4.png", full:"4.png" },
-  { id:"bun",   label:"Blonde",   thumb:"5.png",   full:"4.png" }
+  { id:"waves", label:"Mushroom",  thumb:"4.png", full:"4.png" },
+  { id:"bun",   label:"Blonde",    thumb:"5.png", full:"5.png" }
 ];
 let currentId = FILTERS[0].id;
 
@@ -132,6 +142,26 @@ function buildGallery(){
 /* ========= Tracking (MediaPipe Face Mesh, native) ========= */
 let camera = null, faceMesh = null, rafId = null;
 
+/* Processing canvas (smaller than display for speed) */
+const procCanvas = document.createElement('canvas');
+const procCtx = procCanvas.getContext('2d', { willReadFrequently: false });
+
+/* Choose a good processing size for phone/desktop */
+function pickProcSize(){
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if(isMobile){
+    // ~360x480 is a sweet spot for FaceMesh on phones
+    return { w: 360, h: 480 };
+  }else{
+    // Slightly larger on desktop
+    return { w: Math.round(480 * dpr), h: Math.round(640 * dpr) };
+  }
+}
+let { w: PROC_W, h: PROC_H } = pickProcSize();
+procCanvas.width = PROC_W;
+procCanvas.height = PROC_H;
+
 let hairAR = 1; hair.onload = ()=>{ const nw=hair.naturalWidth||1, nh=hair.naturalHeight||1; hairAR = nh/nw; };
 
 let scaleFactor = parseFloat(sizeRange.value); // base hair size vs face width
@@ -141,24 +171,33 @@ const S = { x:null, y:null, w:null, h:null, a:0 };
 const lerp = (a,b,t)=> a + (b-a)*t;
 let smoothT = 0.35;
 
+/* Live controls */
 sizeRange.addEventListener("input", ()=>{ scaleFactor = parseFloat(sizeRange.value); });
 liftRange.addEventListener("input", ()=>{ vOff        = parseFloat(liftRange.value); });
 widthRange.addEventListener("input",()=>{ widthX      = parseFloat(widthRange.value); });
 
+/* Camera (display). We still use CameraUtils to start a stream easily. */
 async function startCamera(){
   if(!isSecure()){ show(notice,"Camera requires HTTPS or localhost."); throw new Error("insecure"); }
   if(camera){ await camera.stop(); camera=null; }
-  camera = new Camera(video, { onFrame: async()=>{}, width: 720, height: 960 });
+  // Use a modest display size; real compute happens on procCanvas
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const dispW = isMobile ? 480 : 720;
+  const dispH = isMobile ? 640 : 960;
+
+  camera = new Camera(video, { onFrame: async()=>{}, width: dispW, height: dispH });
   await camera.start();
   hide(notice);
 }
 
+/* FaceMesh */
 async function initFaceMesh(){
   if(faceMesh) return;
   faceMesh = new FaceMesh({ locateFile: (f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   faceMesh.setOptions({
     selfieMode: true,
-    maxNumFaces: 4,
+    maxNumFaces: isMobile ? 1 : 4, // ✅ fewer faces on mobile to save compute
     refineLandmarks: false,
     minDetectionConfidence: 0.5,
     minTrackingConfidence: 0.5
@@ -166,6 +205,7 @@ async function initFaceMesh(){
   faceMesh.onResults(onResults);
 }
 
+/* Convert normalized points to display pixels (we always place on the big video) */
 function normToPx(nx, ny, W, H){ return { x: nx*W, y: ny*H }; }
 
 function onResults(res){
@@ -199,7 +239,7 @@ function onResults(res){
     S.h = S.h==null ? bb.h    : lerp(S.h, bb.h,  t);
     S.a = lerp(S.a, angleDeg, Math.max(t, 0.25));
 
-    // place hair — include scaleX(widthX) to widen/narrow without changing height
+    // place hair
     const hairW = S.w * scaleFactor;
     const hairH = hairW * hairAR;
     const hairX = eyeMidX - hairW / 2;
@@ -234,9 +274,30 @@ function onResults(res){
   }
 }
 
+/* Pump FaceMesh from a smaller canvas for speed */
+let lastInfer = 0;
 function pump(){
   cancelAnimationFrame(rafId);
-  const tick = async () => { if(faceMesh && video.readyState>=2) await faceMesh.send({image:video}); rafId=requestAnimationFrame(tick); };
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const targetFPS = isMobile ? 15 : 20; // ✅ throttle for stability
+
+  const tick = async (ts) => {
+    if(faceMesh && video.readyState>=2){
+      if(ts - lastInfer >= 1000/targetFPS){
+        lastInfer = ts;
+        // Draw a smaller frame for processing
+        procCtx.save();
+        // Mirror horizontally to match selfie mode on the small canvas too
+        procCtx.scale(-1, 1);
+        procCtx.drawImage(video, -PROC_W, 0, PROC_W, PROC_H);
+        procCtx.restore();
+
+        // Send the small canvas to FaceMesh; results are normalized (0..1)
+        await faceMesh.send({ image: procCanvas });
+      }
+    }
+    rafId = requestAnimationFrame(tick);
+  };
   rafId = requestAnimationFrame(tick);
 }
 
@@ -263,7 +324,7 @@ function initGallery(){
 
 startBtn.addEventListener("click", async ()=>{ try{ await ensureTracking(); }catch(e){ console.warn(e); }});
 
-// try to autostart (some browsers still require a tap)
+// Try to autostart (some browsers still require a tap)
 (async()=>{ try{ await ensureTracking(); } catch(e){ show(notice,"Tap “Start Camera” and allow permission."); }})();
 
 initGallery();
